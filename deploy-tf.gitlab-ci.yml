@@ -1,0 +1,57 @@
+image:
+  name: "registry.gitlab.com/gitlab-org/terraform-images/releases/2.1.0:latest"
+
+stages:
+  - validate
+  - plan
+  - deploy
+  - destroy
+
+variables:
+  TF_ROOT: terraform
+  TF_STATE_NAME: default
+
+cache:
+  key: "${CI_COMMIT_REF_SLUG}"
+  paths:
+    - ${TF_ROOT}/.terraform/
+
+terraform:fmt:
+  stage: validate
+  script:
+    - terraform fmt -check
+  allow_failure: true
+
+terraform:validate:
+  stage: validate
+  script:
+    - terraform init
+    - terraform validate
+
+terraform:plan:
+  stage: plan
+  script:
+    - terraform init
+    - terraform plan -out=tfplan
+  artifacts:
+    paths:
+      - ${TF_ROOT}/tfplan
+    reports:
+      terraform: ${TF_ROOT}/tfplan.json
+
+terraform:apply:
+  stage: deploy
+  script:
+    - terraform apply -auto-approve tfplan
+  dependencies:
+    - terraform:plan
+  environment:
+    name: $TF_STATE_NAME
+
+terraform:destroy:
+  stage: destroy
+  script:
+    - terraform destroy -auto-approve
+  environment:
+    name: $TF_STATE_NAME
+  when: manual
